@@ -54,9 +54,11 @@ bool init_handler(int timer, int tick, unsigned int timeout)
 	if(write(fd, buf, strlen(buf) + 1) < 0)
 	{
 		perror("write");
+		close(fd);
 		return false;
 	}
 
+	close(fd);
 	return true;
 }
 
@@ -79,9 +81,11 @@ bool remove_handler(int timer)
 	if(write(fd, buf, strlen(buf) + 1) < 0)
 	{
 		perror("write");
+		close(fd);
 		return false;
 	}
 
+	close(fd);
 	return true;
 }
 
