@@ -14,6 +14,7 @@
 #include <linux/init.h>
 #include <linux/timer.h>
 #include <linux/interrupt.h>
+#include <linux/clk.h>
 
 #include <asm/mach-ath79/ar71xx_regs.h>
 #include <asm/mach-ath79/ath79.h>
@@ -71,7 +72,7 @@ struct _timer_desc_struct
 
 void __iomem *ath79_timer_base;
 
-#define DRV_NAME	"Timer IRQ handler"
+#define DRV_NAME	"timer-irq-handler"
 #define FILE_NAME	"timer-irq"
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -81,7 +82,7 @@ void __iomem *ath79_timer_base;
 typedef struct
 {
 	pid_t			pid;
-	unsigned int	timeout;			//	allways microseconds
+	unsigned int	timeout;			//	always microseconds
 	int				only_once;			//	0 means "infinite" timer
 
 	unsigned int	next_time;			//	next time we'll send signal
@@ -92,7 +93,7 @@ typedef struct
 {
 	int				timer;
 	int				irq;
-	unsigned int	timeout;			//	allways microseconds
+	unsigned int	timeout;			//	always microseconds
 
 	unsigned int	current_tick;		//	ticks counter
 	unsigned int	ticks_in_timeout;	//	total ticks we should get
@@ -182,8 +183,8 @@ static void send_signals(_timer_handler* handler)
 	{
 		if(handler->processes[i].pid)
 		{
-			if(	(handler->current_time >= handler->processes[i].next_time) ||
-				(handler->current_interval > handler->processes[i].next_interval))
+			if(	(handler->current_time >= handler->processes[i].next_time) &&
+				(handler->current_interval >= handler->processes[i].next_interval))
 			{
 				if(	(send_timer_signal(handler->processes[i].pid,handler->timer,handler->processes[i].timeout) == 0) &&
 					(!handler->processes[i].only_once))
@@ -621,9 +622,22 @@ static const struct file_operations irq_fops=
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 
+struct clk	//	defined in clock.c
+{
+	unsigned long rate;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////
+
 static int __init mymodule_init(void)
 {
     int i=0;
+
+	struct clk* ahb_clk=clk_get(NULL,"ahb");
+	if(ahb_clk)
+	{
+		_timer_frequency=ahb_clk->rate;
+	}
 
 	ath79_timer_base = ioremap_nocache(AR71XX_RESET_BASE, AR71XX_RESET_SIZE);
 
@@ -634,7 +648,7 @@ static int __init mymodule_init(void)
 
 	in_file=debugfs_create_file(FILE_NAME, 0666, NULL, NULL, &irq_fops);
 
-	debug("Waiting for commands in file /sys/kernel/debug/" FILE_NAME ".\n");
+	printk(KERN_INFO DRV_NAME " is waiting for commands in file /sys/kernel/debug/" FILE_NAME ".\n");
 
     return 0;
 }
